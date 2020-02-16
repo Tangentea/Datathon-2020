@@ -11,6 +11,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## R Markdown
 
+Reading data
+
 ```{r}
 data1=read.csv(file="Part 1.csv", header=T)
 ```
@@ -35,9 +37,13 @@ data4b=read.csv(file="Part 4b.csv", header=T)
 data5=read.csv(file="Part 5.csv", header=T)
 ```
 
+bind data together
+
 ```{r}
 data=rbind(data1, data2, data3, data4a, data4b, data5)
 ```
+
+data cleasing and processing
 
 ```{r}
 A=table(data$GEO.id2,data$NAICS.display.label)
@@ -167,6 +173,7 @@ zerohh=which(total$household_number==0)
 total=total[-zerohh, ]
 ```
 
+Data spliting
 
 ```{r}
 library(caret)
@@ -176,6 +183,10 @@ trainindex = createDataPartition(total$zipcode, p = 0.8,
 total_trn = total[trainindex,]
 total_tst = total[-trainindex,]
 ```
+
+training models: 
+
+random forest model
 
 ```{r}
 fitcontrol = trainControl(method = "cv",
@@ -200,6 +211,8 @@ rf_tst_rmse = postResample(pred = rfpred, obs = total_tst$mean_sale)
 rf_tst_rmse
 ```
 
+linear model
+
 ```{r}
 set.seed(47)
 lmmod = train(
@@ -220,6 +233,8 @@ lm_tst_rmse = postResample(pred = lmpred, obs = total_tst$mean_sale)
 lm_tst_rmse
 ```
 
+neural network model
+
 ```{r}
 set.seed(47)
 nnmod = train(
@@ -239,6 +254,9 @@ nnpred = predict(nnmod, newdata = total_tst)
 nn_tst_rmse = postResample(pred = nnpred, obs = total_tst$mean_sale)
 nn_tst_rmse
 ```
+
+gbm model
+
 ```{r}
 set.seed(47)
 gbmmod = train(
@@ -259,6 +277,7 @@ gbm_tst_rmse = postResample(pred = gbmpred, obs = total_tst$mean_sale)
 gbm_tst_rmse
 ```
 
+model comparison
 
 ```{r}
 #model comparison
@@ -283,6 +302,8 @@ ggplot(result, aes(
   theme(panel.background = element_blank(),legend.key = element_rect(fill = "white"), axis.ticks.x = element_blank())
 ```
 
+making predicted value
+
 ```{r}
 prediction=predict(rfmod, newdata=total)
 total=cbind(total, as.data.frame(prediction))
@@ -292,6 +313,8 @@ total=cbind(total, as.data.frame(prediction))
 total = total %>% 
   mutate(sale_difference = prediction - mean_sale)
 ```
+
+create rating and bind it to the data
 
 ```{r}
 rating=total$sale_difference/100000
@@ -314,6 +337,8 @@ rankingdata=rankingdata[order(rankingdata$rating),]
 ranking=rev(c(1:length(rankingdata$rating)))
 rankingdata=cbind(rankingdata, as.data.frame(ranking))
 ```
+
+read and merge position data for later visualization
 
 ```{r}
 codata=read.csv(file="co.csv", header=T, sep=";")
@@ -416,6 +441,8 @@ server <- function(input, output, session) {
 
 shinyApp(ui, server)
 ```
+
+a few ggplot to explore other characteristics
 
 ```{r}
 ggplot(completedata, mapping=aes(household_number, rating))+
