@@ -1,0 +1,436 @@
+---
+title: "Datathon 2020"
+author: "Congwei Yang"
+date: "2/14/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+data1=read.csv(file="Part 1.csv", header=T)
+```
+
+```{r}
+data2=read.csv(file="Part 2.csv", header=T)
+```
+
+```{r}
+data3=read.csv(file="Part 3.csv", header=T)
+```
+
+```{r}
+data4a=read.csv(file="Part 4a.csv", header=T)
+```
+
+```{r}
+data4b=read.csv(file="Part 4b.csv", header=T)
+```
+
+```{r}
+data5=read.csv(file="Part 5.csv", header=T)
+```
+
+```{r}
+data=rbind(data1, data2, data3, data4a, data4b, data5)
+```
+
+```{r}
+A=table(data$GEO.id2,data$NAICS.display.label)
+```
+
+```{r}
+Ad=data.frame(A)
+zipcode=Ad$Var1[which(Ad$Freq!=0)]
+segment=as.data.frame(table(zipcode))
+segment
+```
+
+```{r}
+#A00200 salary and wage amount
+#A04800 taxable income
+#A06500 income tax amount
+data2=read.csv(file="12zpallagi.csv", header=T)
+data2$zipcode=as.factor(data2$zipcode)
+```
+
+```{r}
+library(dplyr)
+newdata = data2 %>% 
+  group_by(zipcode) %>% 
+  summarise(hahah = sum(A00200), lalal=sum(MARS4))
+```
+
+```{r}
+segment$zipcode=as.numeric(as.character(segment$zipcode))
+newdata$zipcode=as.numeric(as.character(newdata$zipcode))
+```
+
+```{r}
+library(dplyr)
+total = inner_join(segment, newdata, by="zipcode")
+```
+
+```{r}
+salesdata=data
+```
+
+```{r}
+levels(salesdata$RCPSZFE.id)=c(0,0,50000,175000,375000,750000,1000000,0,0,0,0)
+salesdata=salesdata[-1,]
+salesdata$RCPSZFE.id=as.numeric(as.character(salesdata$RCPSZFE.id))
+salesdata$ESTAB=as.numeric(as.character(salesdata$ESTAB))
+```
+
+```{r}
+salesdata2 = salesdata %>% 
+  mutate(sales = RCPSZFE.id * ESTAB) %>% 
+  group_by(GEO.id2) %>% 
+  summarise(hahah = sum(sales))
+
+salesdata2
+
+colnames(salesdata2)=c('zipcode', 'salesamount')
+salesdata2$zipcode=as.numeric(as.character(salesdata2$zipcode))
+```
+
+```{r}
+total = inner_join(total, salesdata2, by="zipcode")
+```
+
+```{r}
+colnames(total)=c('zipcode', 'segment number', 'total wage', 'household head number', 'total market sale')
+```
+
+```{r}
+colnames(total)=c('zipcode','segment number', 'average wage', 'household head number', 'average market sale')
+```
+
+```{r}
+total$'average wage'=total$'average wage'/total$`household head number`
+```
+
+```{r}
+total$`average market sale`=total$`average market sale`/total$`household head number`
+```
+
+```{r}
+data3=read.delim(file='EC1271Z1.dat', header=T, sep="|")
+```
+
+```{r}
+newdata3 = data3 %>% 
+  group_by(ZIPCODE) %>% 
+  summarise(A = sum(ESTAB))
+```
+
+```{r}
+colnames(newdata3)=c('zipcode', 'entertainment number')
+total=left_join(total, newdata3, by='zipcode')
+```
+
+```{r}
+total$`entertainment number`[is.na(total$`entertainment number`)]=0
+```
+
+```{r}
+data4=read.delim(file="EC1272Z1.dat", header=T, sep='|')
+```
+
+```{r}
+newdata4 = data4 %>% 
+  group_by(ZIPCODE) %>% 
+  summarise(A = sum(ESTAB))
+```
+
+```{r}
+colnames(newdata4)=c('zipcode', 'F/A number')
+total=left_join(total, newdata4, by='zipcode')
+```
+
+```{r}
+colnames(total)=c('zipcode', 'segment_n', 'wage', 'household_number', 'mean_sale','entertainment_n','F/A_n')
+total$`F/A_n`[is.na(total$`F/A_n`)]=0
+```
+
+```{r}
+#house hold number = 0 should be discarded
+zerohh=which(total$household_number==0)
+```
+
+
+```{r}
+total=total[-zerohh, ]
+```
+
+
+```{r}
+library(caret)
+set.seed(47)
+trainindex = createDataPartition(total$zipcode, p = 0.8,
+                                 list = FALSE, times = 1)
+total_trn = total[trainindex,]
+total_tst = total[-trainindex,]
+```
+
+```{r}
+fitcontrol = trainControl(method = "cv",
+                          number = 5,
+                          )
+set.seed(47)
+rfmod = train(
+  mean_sale ~ .-zipcode,
+  data = total_trn,
+  method = "ranger",
+  trControl = fitcontrol,
+  metric = "RMSE"
+)
+#rfmod_rmse = 
+rfmod$result
+```
+
+```{r}
+#TEST RMSE
+rfpred = predict(rfmod, newdata = total_tst)
+rf_tst_rmse = postResample(pred = rfpred, obs = total_tst$mean_sale)
+rf_tst_rmse
+```
+
+```{r}
+set.seed(47)
+lmmod = train(
+  mean_sale ~ .-zipcode,
+  data = total_trn,
+  method = "lm",
+  trControl = fitcontrol,
+  metric = "RMSE"
+)
+#rfmod_rmse = 
+lmmod$result
+```
+
+```{r}
+#TEST RMSE
+lmpred = predict(lmmod, newdata = total_tst)
+lm_tst_rmse = postResample(pred = lmpred, obs = total_tst$mean_sale)
+lm_tst_rmse
+```
+
+```{r}
+set.seed(47)
+nnmod = train(
+  mean_sale ~ .-zipcode,
+  data = total_trn,
+  method = "brnn",
+  trControl = fitcontrol,
+  metric = "RMSE"
+)
+#rfmod_rmse = 
+nnmod$result
+```
+
+```{r}
+#TEST RMSE
+nnpred = predict(nnmod, newdata = total_tst)
+nn_tst_rmse = postResample(pred = nnpred, obs = total_tst$mean_sale)
+nn_tst_rmse
+```
+```{r}
+set.seed(47)
+gbmmod = train(
+  mean_sale ~ .-zipcode,
+  data = total_trn,
+  method = "gbm",
+  trControl = fitcontrol,
+  metric = "RMSE"
+)
+#rfmod_rmse = 
+gbmmod$result
+```
+
+```{r}
+#TEST RMSE
+gbmpred = predict(gbmmod, newdata = total_tst)
+gbm_tst_rmse = postResample(pred = gbmpred, obs = total_tst$mean_sale)
+gbm_tst_rmse
+```
+
+
+```{r}
+#model comparison
+result = data.frame(
+  RMSE = c(rfmod$result$RMSE,lmmod$result$RMSE,nnmod$result$RMSE,gbmmod$result$RMSE),
+  Model_Names = c(
+    rep("Random Forest", nrow(rfmod$result)),
+    "Linear Regression",
+    rep("Neural Network", nrow(nnmod$result)),
+    rep("Gbm", nrow(gbmmod$result))
+  )
+)
+
+ggplot(result, aes(
+  x = Model_Names,
+  y = RMSE,
+  fill = Model_Names,
+  color = factor(Model_Names)
+)) +
+  scale_y_continuous(name = "RMSE")+
+  geom_boxplot(alpha = 0.3)+
+  theme(panel.background = element_blank(),legend.key = element_rect(fill = "white"), axis.ticks.x = element_blank())
+```
+
+```{r}
+prediction=predict(rfmod, newdata=total)
+total=cbind(total, as.data.frame(prediction))
+```
+
+```{r}
+total = total %>% 
+  mutate(sale_difference = prediction - mean_sale)
+```
+
+```{r}
+rating=total$sale_difference/100000
+summary(rating)
+```
+
+```{r}
+rated=cbind(total, as.data.frame(rating))
+```
+
+```{r}
+rankingdata=rated
+```
+
+```{r}
+rankingdata=rankingdata[order(rankingdata$rating),]
+```
+
+```{r}
+ranking=rev(c(1:length(rankingdata$rating)))
+rankingdata=cbind(rankingdata, as.data.frame(ranking))
+```
+
+```{r}
+codata=read.csv(file="co.csv", header=T, sep=";")
+```
+
+```{r}
+codata=codata %>%
+  select(Zip, Latitude, Longitude)
+colnames(codata)=c("zipcode", "Latitude", "Longitude")
+```
+
+```{r}
+completedata=left_join(rankingdata, codata, by="zipcode")
+```
+
+Visualization: 
+
+```{r}
+d1=data[which(data$RCPSZFE.id=='001'),]
+d2=data[which(data$RCPSZFE.id=='1'),]
+```
+
+```{r}
+pdata=rbind(d1,d2)
+```
+
+```{r}
+pdata$GEO.id2=as.numeric(as.character(pdata$GEO.id2))
+```
+
+Shiny using zipcode
+
+```{r}
+library(googleway)
+
+## Not run: 
+library(shiny)
+library(googleway)
+
+ui <- fluidPage(
+  textInput(inputId = 'zipcode', 
+            label = 'Enter Zip code here', 
+            ), 
+  submitButton("Click me"), 
+  google_mapOutput("map"), 
+  dataTableOutput("info"))
+
+server <- function(input, output, session) {
+  set_key("AIzaSyDk0GcRhiZ_NGyeYrmBrDiahnoJrJlu34Q")
+  
+
+  output$map <- renderGoogle_map({
+    posdata=completedata %>% select(zipcode, Latitude, Longitude)
+    google_map(location = c(posdata$Latitude[which(posdata$zipcode==input$zipcode)], posdata$Longitude[which(posdata$zipcode==input$zipcode)]),
+                zoom = 14)
+  })
+  infodata=completedata %>% select(zipcode, ranking, rating,segment_n)
+  output$info <- renderDataTable({
+    infodata[which(infodata$zipcode==input$zipcode),]
+  })
+  
+  
+  
+}
+
+shinyApp(ui, server)
+```
+
+Shiny using ranking
+
+```{r}
+library(googleway)
+
+## Not run: 
+library(shiny)
+library(googleway)
+
+ui <- fluidPage(
+  textInput(inputId = 'ranking', 
+            label = 'Enter ranking code here', 
+            ), 
+  submitButton("Click me"), 
+  google_mapOutput("map"), 
+  dataTableOutput("info"))
+
+server <- function(input, output, session) {
+  set_key("AIzaSyDk0GcRhiZ_NGyeYrmBrDiahnoJrJlu34Q")
+  
+
+  output$map <- renderGoogle_map({
+    posdata=completedata %>% select(zipcode, Latitude, Longitude, ranking)
+    google_map(location = c(posdata$Latitude[which(posdata$ranking==input$ranking)], posdata$Longitude[which(posdata$ranking==input$ranking)]),
+                zoom = 14)
+  })
+  infodata=completedata %>% select(zipcode, ranking, rating,segment_n)
+  output$info <- renderDataTable({
+    infodata[which(infodata$ranking==input$ranking),]
+  })
+}
+
+shinyApp(ui, server)
+```
+
+```{r}
+ggplot(completedata, mapping=aes(household_number, rating))+
+         geom_point(size=1, col='deepskyblue')
+  
+```
+
+```{r}
+ggplot(completedata, mapping=aes(ranking, rating))+
+         geom_point(size=1, col='deepskyblue')
+```
+
+```{r}
+ggplot(completedata, mapping=aes(rating, wage))+
+         geom_point(size=1, col='deepskyblue')
+```
+
+
